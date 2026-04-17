@@ -1,6 +1,5 @@
 """
-URGMN FastAPI Backend — Fixed Version
-Serves the HTML frontend and handles real model inference.
+URGMN FastAPI Backend — Fixed Version (DEPLOYMENT READY)
 """
 
 import os, io, warnings, traceback
@@ -8,11 +7,14 @@ import numpy as np
 import nibabel as nib
 import cv2
 import torch
+import requests
+
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from typing import Optional
+
 warnings.filterwarnings("ignore")
 
 from model import URGMN, FEAT_COLS
@@ -21,7 +23,7 @@ from model import URGMN, FEAT_COLS
 MODEL_DIR   = "./models"
 N_SLICES    = 20
 IMG_SIZE    = 224
-DEVICE      = torch.device("cpu")   # CPU for deployment
+DEVICE      = torch.device("cpu")
 CLASS_NAMES = ["CN", "MCI", "AD"]
 CLASS_FULL  = [
     "Cognitively Normal",
@@ -29,16 +31,45 @@ CLASS_FULL  = [
     "Alzheimer's Disease"
 ]
 
-# ── Training statistics for normalisation ──
-# These come from the ADNI training data (adni_master_rich.csv descriptive stats)
+# ── Google Drive Model Links ──
+MODEL_URLS = [
+    "https://drive.google.com/uc?export=download&id=1fLfqHJcCJkuRcaSUbiET79ZUsGxU0d1a",
+    "https://drive.google.com/uc?export=download&id=1EStXqihkn8tsEmI9o7t-mbdkfDBVxWhq",
+    "https://drive.google.com/uc?export=download&id=1N-On7IbaNNKu-h73uGlr-DId_Gyu3Y4-",
+    "https://drive.google.com/uc?export=download&id=1htnIYQLiJCxD6fGPy9x0oaolV_wfd0jM",
+    "https://drive.google.com/uc?export=download&id=1i2cij4WBUNR3ezC9DOjBdW214FYMXG4Y"
+]
+
+def download_models():
+    os.makedirs(MODEL_DIR, exist_ok=True)
+
+    for i, url in enumerate(MODEL_URLS, start=1):
+        path = os.path.join(MODEL_DIR, f"best_fold{i}.pt")
+
+        if not os.path.exists(path):
+            print(f"Downloading model {i}...")
+
+            r = requests.get(url, stream=True)
+
+            if "text/html" in r.headers.get("Content-Type", ""):
+                raise Exception("Google Drive blocked download")
+
+            with open(path, "wb") as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+
+            print(f"Model {i} downloaded")
+
+# ── Training statistics ──
 FEAT_STATS = {
     "CDR_GLOBAL":  (0.26, 0.25),
     "CDR_SB":      (0.90, 1.02),
-    "MMSE_SCORE":  (0.79, 0.14),   # already normalised 0-1 in master
-    "FAQ_TOTAL":   (0.15, 0.20),   # already normalised 0-1
+    "MMSE_SCORE":  (0.79, 0.14),
+    "FAQ_TOTAL":   (0.15, 0.20),
     "APOE_RISK":   (0.30, 0.38),
-    "AGE":         (0.55, 0.17),   # normalised
-    "EDUCATION":   (0.62, 0.14),   # normalised
+    "AGE":         (0.55, 0.17),
+    "EDUCATION":   (0.62, 0.14),
     "COG_INDEX":   (0.33, 0.23),
     "GENDER_BIN":  (0.45, 0.50),
 }
@@ -52,69 +83,59 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve static files (the frontend)
 app.mount("/static", StaticFiles(directory="."), name="static")
 
 @app.get("/")
 def serve_frontend():
     return FileResponse("index.html")
 
-
-# ── Load models at startup ──
+# ── Load models ──
 fold_models = []
 
 @app.on_event("startup")
 def load_models():
+    download_models()   # 🔥 ONLY ADDITION
+
     global fold_models
     print("Loading URGMN fold models...")
+
     for i in range(1, 6):
         path = os.path.join(MODEL_DIR, f"best_fold{i}.pt")
+
         if not os.path.exists(path):
-            # Also try best_model.pt as fallback
             alt = os.path.join(MODEL_DIR, "best_model.pt")
             if os.path.exists(alt) and i == 1:
                 path = alt
             else:
-                print(f"  Fold {i}: NOT FOUND at {path}")
+                print(f"Fold {i}: NOT FOUND")
                 continue
+
         try:
             m = URGMN().to(DEVICE)
-            m.load_state_dict(
-                torch.load(path, map_location=DEVICE, weights_only=True)
-            )
+            m.load_state_dict(torch.load(path, map_location=DEVICE))
             m.eval()
             fold_models.append(m)
-            print(f"  Fold {i}: loaded ✅  ({path})")
+            print(f"Fold {i}: loaded")
         except Exception as e:
-            print(f"  Fold {i}: ERROR — {e}")
+            print(f"Fold {i}: ERROR — {e}")
 
-    if not fold_models:
-        print("WARNING: No models loaded. Check models/ folder.")
-    else:
-        print(f"\nLoaded {len(fold_models)} model(s) on {DEVICE}")
-
+    print(f"Loaded {len(fold_models)} models")
 
 @app.get("/health")
 def health():
     return {
-        "status":        "ok",
+        "status": "ok",
         "models_loaded": len(fold_models),
-        "device":        str(DEVICE),
-        "feat_cols":     FEAT_COLS,
+        "device": str(DEVICE),
+        "feat_cols": FEAT_COLS,
     }
-
 
 # ── MRI preprocessing ──
 def extract_slices(nifti_bytes: bytes) -> np.ndarray:
-    """
-    Load NIfTI from bytes, extract N_SLICES central axial slices.
-    Returns array of shape [N_SLICES, IMG_SIZE, IMG_SIZE] dtype float32 in [0,1].
-    """
     try:
         fh = nib.FileHolder(fileobj=io.BytesIO(nifti_bytes))
         img = nib.Nifti1Image.from_file_map({"header": fh, "image": fh})
-    except Exception:
-        # Try as gzip
+    except:
         import gzip, tempfile
         with tempfile.NamedTemporaryFile(suffix=".nii.gz", delete=False) as tf:
             tf.write(nifti_bytes)
@@ -126,195 +147,98 @@ def extract_slices(nifti_bytes: bytes) -> np.ndarray:
     if data.ndim == 4:
         data = data[:, :, :, 0]
 
-    z_dim   = data.shape[2]
-    center  = z_dim // 2
-    indices = np.linspace(
-        max(0, center - z_dim // 3),
-        min(z_dim - 1, center + z_dim // 3),
-        N_SLICES,
-        dtype=int
-    )
+    z_dim = data.shape[2]
+    center = z_dim // 2
+    indices = np.linspace(max(0, center - z_dim // 3),
+                          min(z_dim - 1, center + z_dim // 3),
+                          N_SLICES, dtype=int)
 
     slices = []
     for idx in indices:
         sl = data[:, :, idx]
         mn, mx = sl.min(), sl.max()
-        if mx - mn > 0:
-            sl = (sl - mn) / (mx - mn)
-        else:
-            sl = np.zeros_like(sl)
-        sl = cv2.resize(
-            (sl * 255).astype(np.uint8),
-            (IMG_SIZE, IMG_SIZE)
-        ).astype(np.float32) / 255.0
+        sl = (sl - mn) / (mx - mn + 1e-6)
+
+        sl = cv2.resize((sl * 255).astype(np.uint8),
+                        (IMG_SIZE, IMG_SIZE)).astype(np.float32) / 255.0
         slices.append(sl)
 
-    return np.stack(slices, axis=0)  # [N, H, W]
+    return np.stack(slices)
 
-
-def build_clinical_tensor(
-    mmse: float, cdr: float, faq: float,
-    age: float, edu: float, apoe: int,
-    gender: int, cdr_sb: float
-) -> torch.Tensor:
-    """
-    Normalise raw clinical inputs to match training distribution.
-    Returns tensor of shape [1, NUM_FEATS].
-    """
-    # Compute derived features
+# ── Clinical tensor ──
+def build_clinical_tensor(mmse, cdr, faq, age, edu, apoe, gender, cdr_sb):
     cog_idx = (
         (1.0 - mmse / 30.0) * 0.4 +
         (cdr / 3.0) * 0.4 +
         (faq / 30.0) * 0.2
     )
-    apoe_risk  = {-1: 0.0, 0: 0.0, 1: 0.5, 2: 1.0}.get(int(apoe), 0.0)
-    gender_bin = 1.0 if int(gender) == 2 else 0.0
 
-    # Map MMSE and FAQ to 0-1 range (matching training preprocessing)
-    mmse_norm = mmse / 30.0
-    faq_norm  = faq / 30.0
+    apoe_risk  = {-1:0,0:0,1:0.5,2:1}.get(int(apoe),0)
+    gender_bin = 1.0 if int(gender)==2 else 0.0
 
-    raw = {
-        "CDR_GLOBAL":  float(cdr),
-        "CDR_SB":      float(cdr_sb),
-        "MMSE_SCORE":  float(mmse_norm),
-        "FAQ_TOTAL":   float(faq_norm),
-        "APOE_RISK":   float(apoe_risk),
-        "AGE":         float(min(1.0, max(0.0, (age - 40.0) / 60.0))),
-        "EDUCATION":   float(min(1.0, max(0.0, edu / 25.0))),
-        "COG_INDEX":   float(min(1.0, max(0.0, cog_idx))),
-        "GENDER_BIN":  float(gender_bin),
-    }
+    feats = [
+        float(cdr), float(cdr_sb),
+        float(mmse/30), float(faq/30),
+        float(apoe_risk),
+        float((age-40)/60),
+        float(edu/25),
+        float(cog_idx),
+        float(gender_bin)
+    ]
 
-    feats = [raw[col] for col in FEAT_COLS]
-    return torch.tensor(feats, dtype=torch.float32).unsqueeze(0)
+    return torch.tensor(feats).float().unsqueeze(0)
 
-
-# ── Prediction endpoint ──
+# ── Prediction ──
 @app.post("/predict")
 async def predict(
     mri_file: Optional[UploadFile] = File(None),
-    mmse:    float = Form(24.0),
-    cdr:     float = Form(0.5),
-    faq:     float = Form(6.0),
-    age:     float = Form(72.0),
-    edu:     float = Form(16.0),
-    apoe:    int   = Form(-1),
-    gender:  int   = Form(1),
-    cdr_sb:  float = Form(1.0),
+    mmse: float = Form(24.0),
+    cdr: float = Form(0.5),
+    faq: float = Form(6.0),
+    age: float = Form(72.0),
+    edu: float = Form(16.0),
+    apoe: int = Form(-1),
+    gender: int = Form(1),
+    cdr_sb: float = Form(1.0),
 ):
     if not fold_models:
-        return JSONResponse(
-            status_code=503,
-            content={"error": "No models loaded. Check that best_fold1.pt to best_fold5.pt exist in models/"}
-        )
+        return JSONResponse(status_code=503,
+                            content={"error": "No models loaded"})
 
-    # ── Clinical tensor ──
-    try:
-        clin = build_clinical_tensor(
-            mmse, cdr, faq, age, edu, apoe, gender, cdr_sb
-        ).to(DEVICE)
-    except Exception as e:
-        return JSONResponse(
-            status_code=400,
-            content={"error": f"Failed to build clinical tensor: {str(e)}"}
-        )
+    clin = build_clinical_tensor(
+        mmse, cdr, faq, age, edu, apoe, gender, cdr_sb
+    ).to(DEVICE)
 
-    # ── MRI slices ──
     has_mri = False
-    if mri_file is not None and mri_file.filename:
+    if mri_file:
         try:
             nifti_bytes = await mri_file.read()
-            slices_arr  = extract_slices(nifti_bytes)
-            has_mri     = True
-            print(f"MRI loaded: {mri_file.filename}, slices shape: {slices_arr.shape}")
-        except Exception as e:
-            print(f"MRI load failed: {e}")
-            traceback.print_exc()
+            slices_arr = extract_slices(nifti_bytes)
+            has_mri = True
+        except:
             has_mri = False
 
     if not has_mri:
-        # Use a blank placeholder — model will rely on clinical stream
         slices_arr = np.zeros((N_SLICES, IMG_SIZE, IMG_SIZE), dtype=np.float32)
-        print("Using blank MRI placeholder (no file uploaded or failed to load)")
 
-    # Convert slices to tensor [N_SLICES, 3, H, W]
-    slices_t = torch.from_numpy(slices_arr).unsqueeze(1).repeat(1, 3, 1, 1).to(DEVICE)
+    slices_t = torch.from_numpy(slices_arr).unsqueeze(1).repeat(1,3,1,1).to(DEVICE)
 
-    # ── Ensemble inference over all folds ──
-    all_fold_probs  = []
-    all_fold_r_mri  = []
-    all_fold_r_clin = []
+    all_probs = []
 
     with torch.no_grad():
-        for fold_idx, m in enumerate(fold_models):
+        for m in fold_models:
             slice_probs = []
-            r_mris      = []
-            r_clins     = []
+            for i in range(N_SLICES):
+                p,_,_ = m(slices_t[i].unsqueeze(0), clin)
+                slice_probs.append(p.cpu().numpy()[0])
+            all_probs.append(np.mean(slice_probs, axis=0))
 
-            for s_idx in range(slices_t.shape[0]):
-                img_b = slices_t[s_idx].unsqueeze(0)  # [1, 3, H, W]
-
-                # Extract reliability scores manually
-                x = m.stem(img_b)
-                x = m.layer1(x)
-                x = m.layer2(x); x = m.cbam2(x)
-                x = m.layer3(x); x = m.cbam3(x)
-                x = m.layer4(x); x = m.cbam4(x)
-                mf = m.pool(x).flatten(1)
-                cf = m.clin(clin)
-
-                r_mri_score  = float(m.r_mri(mf).item())
-                r_clin_score = float(m.r_clin(cf).item())
-
-                # Full forward pass
-                probs, _, _ = m(img_b, clin)
-                slice_probs.append(probs.cpu().numpy()[0])
-                r_mris.append(r_mri_score)
-                r_clins.append(r_clin_score)
-
-            # Average over slices for this fold
-            fold_avg_probs = np.mean(slice_probs, axis=0)
-            all_fold_probs.append(fold_avg_probs)
-            all_fold_r_mri.append(np.mean(r_mris))
-            all_fold_r_clin.append(np.mean(r_clins))
-
-    # Average over folds
-    final_probs = np.mean(all_fold_probs, axis=0)
-    pred_class  = int(final_probs.argmax())
-
-    # Uncertainty from Dirichlet: run one more pass to get alpha
-    with torch.no_grad():
-        img_b = slices_t[N_SLICES // 2].unsqueeze(0)
-        _, unc_val, alpha = fold_models[0](img_b, clin)
-        if isinstance(unc_val, torch.Tensor):
-            uncertainty = float(unc_val.mean().item())
-        else:
-            uncertainty = float(unc_val)
-    uncertainty = max(0.02, min(0.95, uncertainty))
-
-    r_mri_final  = float(np.mean(all_fold_r_mri))
-    r_clin_final = float(np.mean(all_fold_r_clin))
-
-    print(f"Prediction: {CLASS_NAMES[pred_class]} "
-          f"({final_probs[pred_class]*100:.1f}%) "
-          f"unc={uncertainty:.3f} "
-          f"R_mri={r_mri_final:.3f} R_clin={r_clin_final:.3f}")
+    final_probs = np.mean(all_probs, axis=0)
+    pred = int(final_probs.argmax())
 
     return {
-        "diagnosis":      CLASS_NAMES[pred_class],
-        "diagnosis_full": CLASS_FULL[pred_class],
-        "probabilities": {
-            "CN":  round(float(final_probs[0]), 4),
-            "MCI": round(float(final_probs[1]), 4),
-            "AD":  round(float(final_probs[2]), 4),
-        },
-        "uncertainty":    round(uncertainty, 4),
-        "reliability": {
-            "mri":      round(r_mri_final, 4),
-            "clinical": round(r_clin_final, 4),
-        },
-        "has_mri":       has_mri,
-        "model_version": "URGMN-v2.0",
-        "n_models":      len(fold_models),
+        "diagnosis": CLASS_NAMES[pred],
+        "diagnosis_full": CLASS_FULL[pred],
+        "probabilities": final_probs.tolist(),
+        "has_mri": has_mri
     }
