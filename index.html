@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>URGMN — Alzheimer's Diagnostic Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Syne:wght@400;500;600;700&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --paper:#f7f4ef; --cream:#f0ece3; --ink:#0e0d0b; --ink2:#2a2720;
+  --ink3:#5a5650; --ink4:#9a9690; --gold:#b8860b; --gold2:#d4a017;
+  --rule:rgba(14,13,11,0.12); --rule2:rgba(14,13,11,0.06);
+  --cn:#1a5c2a; --cn-bg:#e8f5ec; --mci:#7a4e00; --mci-bg:#fff3e0;
+  --ad:#7a1a1a; --ad-bg:#fdecea;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:16px;scroll-behavior:smooth}
+body{background:var(--paper);color:var(--ink);font-family:'Syne',sans-serif;
+  font-weight:400;min-height:100vh;overflow-x:hidden}
+
+/* Header */
+.site-header{position:sticky;top:0;z-index:100;background:rgba(247,244,239,0.96);
+  backdrop-filter:blur(8px);border-bottom:1px solid var(--rule);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 2.5rem;height:56px}
+.wordmark{display:flex;align-items:baseline;gap:12px}
+.wordmark-main{font-family:'Cormorant Garamond',serif;font-size:1.5rem;
+  font-weight:500;letter-spacing:0.12em;color:var(--ink)}
+.wordmark-sub{font-family:'IBM Plex Mono',monospace;font-size:0.62rem;
+  letter-spacing:0.18em;color:var(--ink4);text-transform:uppercase}
+.status-pill{display:flex;align-items:center;gap:7px;
+  font-family:'IBM Plex Mono',monospace;font-size:0.62rem;
+  letter-spacing:0.15em;color:var(--cn);text-transform:uppercase}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--cn);
+  animation:breathe 2.5s ease-in-out infinite}
+@keyframes breathe{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.75)}}
+
+/* Connection banner */
+.conn-banner{padding:10px 2.5rem;display:flex;align-items:center;gap:10px;
+  font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:0.1em}
+.conn-banner.checking{background:#fff9e6;border-bottom:1px solid #f0c040;color:#7a4e00}
+.conn-banner.connected{background:#e8f5ec;border-bottom:1px solid #88c898;color:#1a5c2a}
+.conn-banner.disconnected{background:#fdecea;border-bottom:1px solid #e8a0a0;color:#7a1a1a}
+.conn-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.conn-banner.checking .conn-dot{background:#f0c040;animation:breathe 1s infinite}
+.conn-banner.connected .conn-dot{background:#1a5c2a}
+.conn-banner.disconnected .conn-dot{background:#b03030}
+
+/* Hero */
+.hero{border-bottom:1px solid var(--rule);padding:4rem 2.5rem 3rem;
+  display:grid;grid-template-columns:1fr 1fr;gap:3rem;align-items:center}
+.hero-kicker{font-family:'IBM Plex Mono',monospace;font-size:0.65rem;
+  letter-spacing:0.25em;color:var(--gold);text-transform:uppercase;margin-bottom:1.2rem}
+.hero-h1{font-family:'Cormorant Garamond',serif;font-size:clamp(2.6rem,4.5vw,4rem);
+  font-weight:300;line-height:1.05;margin-bottom:1.5rem}
+.hero-h1 em{font-style:italic;color:var(--gold)}
+.hero-body{font-size:0.95rem;line-height:1.75;color:var(--ink3);margin-bottom:1.5rem}
+.metrics-block{border:1px solid var(--rule);background:var(--cream)}
+.metrics-row{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--rule)}
+.metrics-row:last-child{border-bottom:none}
+.metric-cell{padding:1.3rem;border-right:1px solid var(--rule)}
+.metric-cell:last-child{border-right:none}
+.metric-num{font-family:'Cormorant Garamond',serif;font-size:2.3rem;font-weight:400;
+  color:var(--ink);line-height:1;display:block}
+.metric-label{font-family:'IBM Plex Mono',monospace;font-size:0.58rem;
+  letter-spacing:0.18em;color:var(--ink4);text-transform:uppercase;margin-top:3px;display:block}
+
+/* Section header */
+.section-head{display:flex;align-items:baseline;gap:1.5rem;
+  padding:1.8rem 2.5rem 1.5rem;border-bottom:1px solid var(--rule)}
+.section-num{font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:var(--ink4)}
+.section-title{font-family:'Cormorant Garamond',serif;font-size:1.3rem;font-weight:400}
+.section-rule{flex:1;height:1px;background:var(--rule);position:relative;top:4px}
+
+/* Form */
+.assess-wrap{padding:0 2.5rem 4rem}
+.assess-grid{display:grid;grid-template-columns:1fr 1fr;gap:2px;
+  background:var(--rule);border:1px solid var(--rule);border-top:none}
+.pane{background:var(--paper);padding:2.2rem}
+.pane-title{font-family:'Cormorant Garamond',serif;font-size:1.25rem;
+  font-weight:400;margin-bottom:0.3rem}
+.pane-sub{font-family:'IBM Plex Mono',monospace;font-size:0.6rem;
+  letter-spacing:0.18em;color:var(--ink4);text-transform:uppercase;
+  margin-bottom:1.8rem;padding-bottom:1rem;border-bottom:1px solid var(--rule2)}
+
+.field{margin-bottom:1.1rem}
+.field-label{display:block;font-family:'IBM Plex Mono',monospace;font-size:0.62rem;
+  letter-spacing:0.15em;color:var(--ink3);text-transform:uppercase;margin-bottom:5px}
+.field input,.field select{width:100%;background:var(--cream);
+  border:1px solid var(--rule);color:var(--ink);padding:9px 13px;
+  font-family:'IBM Plex Mono',monospace;font-size:0.85rem;outline:none;
+  border-radius:2px;transition:border-color 0.2s}
+.field input:focus,.field select:focus{border-color:var(--gold);background:#fff;
+  box-shadow:0 0 0 3px rgba(184,134,11,0.08)}
+.field select{background-image:url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235a5650'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 13px center;padding-right:34px;appearance:none}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.field-hint{font-family:'IBM Plex Mono',monospace;font-size:0.59rem;color:var(--ink4);margin-top:4px}
+
+.range-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
+.range-current{font-family:'Cormorant Garamond',serif;font-size:1.5rem;
+  font-weight:400;color:var(--gold);line-height:1}
+input[type="range"]{width:100%;height:2px;
+  background:linear-gradient(to right,var(--gold) calc(var(--pct,80%)),var(--rule2) calc(var(--pct,80%)));
+  border-radius:1px;appearance:none;outline:none;cursor:pointer;margin:3px 0}
+input[type="range"]::-webkit-slider-thumb{appearance:none;width:13px;height:13px;
+  border-radius:50%;background:var(--ink);border:2px solid var(--paper);
+  box-shadow:0 0 0 1px var(--rule);cursor:pointer}
+.range-ends{display:flex;justify-content:space-between;margin-top:3px}
+.range-end{font-family:'IBM Plex Mono',monospace;font-size:0.57rem;color:var(--ink4)}
+
+/* Upload */
+.upload-zone{border:1px dashed var(--rule);background:var(--cream);border-radius:2px;
+  padding:2.2rem 1.5rem;text-align:center;cursor:pointer;
+  transition:border-color 0.2s,background 0.2s;position:relative;margin-bottom:1.1rem}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--gold);background:rgba(184,134,11,0.03)}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;padding:0;border:none;width:100%;height:100%}
+.upload-icon{margin:0 auto 0.8rem;width:36px;height:36px;opacity:0.2}
+.upload-text{font-size:0.88rem;color:var(--ink3);margin-bottom:0.3rem}
+.upload-hint{font-family:'IBM Plex Mono',monospace;font-size:0.59rem;color:var(--ink4)}
+.file-status{display:none;align-items:center;gap:9px;padding:9px 13px;
+  background:var(--cn-bg);border:1px solid rgba(26,92,42,0.2);border-radius:2px;margin-bottom:1.1rem}
+.file-status.show{display:flex}
+.file-status-name{font-family:'IBM Plex Mono',monospace;font-size:0.72rem;color:var(--cn)}
+
+/* Run button */
+.run-btn{width:100%;padding:14px 24px;background:var(--ink);color:var(--paper);
+  font-family:'IBM Plex Mono',monospace;font-size:0.72rem;letter-spacing:0.2em;
+  text-transform:uppercase;border:none;border-radius:2px;cursor:pointer;
+  transition:background 0.2s,transform 0.15s;display:flex;align-items:center;
+  justify-content:center;gap:9px;margin-top:1.2rem}
+.run-btn:hover:not(:disabled){background:var(--ink2);transform:translateY(-1px)}
+.run-btn:disabled{opacity:0.45;cursor:not-allowed;transform:none}
+.btn-spin{width:14px;height:14px;border:1.5px solid rgba(247,244,239,0.3);
+  border-top-color:var(--paper);border-radius:50%;animation:spin 0.8s linear infinite;
+  display:none;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Results */
+#results{display:none}
+.results-grid{display:grid;grid-template-columns:2fr 1fr;gap:2px;
+  background:var(--rule);border-bottom:1px solid var(--rule)}
+.result-pane{background:var(--paper);padding:2.2rem}
+.side-pane{background:var(--cream);padding:2.2rem}
+
+.diag-stamp{display:inline-flex;align-items:center;gap:7px;padding:6px 13px;
+  font-family:'IBM Plex Mono',monospace;font-size:0.65rem;letter-spacing:0.2em;
+  text-transform:uppercase;border-radius:2px;margin-bottom:0.8rem;font-weight:500}
+.stamp-cn{background:var(--cn-bg);color:var(--cn)}
+.stamp-mci{background:var(--mci-bg);color:var(--mci)}
+.stamp-ad{background:var(--ad-bg);color:var(--ad)}
+.diag-title{font-family:'Cormorant Garamond',serif;font-size:2.2rem;
+  font-weight:300;line-height:1.1;color:var(--ink);margin-bottom:0.4rem}
+.diag-conf{font-family:'IBM Plex Mono',monospace;font-size:0.65rem;
+  color:var(--ink3);letter-spacing:0.08em;margin-bottom:1.5rem;
+  padding-bottom:1.5rem;border-bottom:1px solid var(--rule2)}
+
+.prob-section-label{font-family:'IBM Plex Mono',monospace;font-size:0.6rem;
+  letter-spacing:0.2em;color:var(--ink4);text-transform:uppercase;margin-bottom:1rem}
+.prob-row{display:flex;align-items:center;gap:13px;margin-bottom:13px}
+.prob-class{font-family:'IBM Plex Mono',monospace;font-size:0.65rem;
+  letter-spacing:0.12em;text-transform:uppercase;width:36px;flex-shrink:0}
+.prob-track{flex:1;height:3px;background:var(--rule2);border-radius:1.5px;overflow:hidden}
+.prob-fill{height:100%;border-radius:1.5px;transition:width 1.4s cubic-bezier(0.16,1,0.3,1);width:0}
+.prob-num{font-family:'Cormorant Garamond',serif;font-size:1.2rem;
+  width:52px;text-align:right;flex-shrink:0}
+
+.clin-table{width:100%;border-collapse:collapse;margin-top:0.8rem}
+.clin-table tr{border-bottom:1px solid var(--rule2)}
+.clin-table tr:last-child{border-bottom:none}
+.clin-table td{padding:9px 0;font-size:0.82rem}
+.clin-key{font-family:'IBM Plex Mono',monospace;font-size:0.6rem;
+  letter-spacing:0.1em;color:var(--ink3);text-transform:uppercase;width:42%}
+.clin-val{font-family:'IBM Plex Mono',monospace;font-size:0.78rem;
+  color:var(--ink);text-align:right}
+
+.side-label{font-family:'IBM Plex Mono',monospace;font-size:0.6rem;
+  letter-spacing:0.2em;color:var(--ink4);text-transform:uppercase;
+  margin-bottom:1rem;padding-bottom:0.7rem;border-bottom:1px solid var(--rule)}
+.unc-big{font-family:'Cormorant Garamond',serif;font-size:3.2rem;
+  font-weight:300;line-height:1;color:var(--ink);margin-bottom:0.4rem;display:block}
+.unc-bar{height:3px;background:var(--rule2);border-radius:1.5px;overflow:hidden;margin:0.8rem 0}
+.unc-fill{height:100%;border-radius:1.5px;transition:width 1.2s cubic-bezier(0.16,1,0.3,1);width:0}
+.unc-desc{font-size:0.78rem;line-height:1.5;color:var(--ink3);margin-bottom:1.8rem}
+
+.r-row{display:flex;align-items:center;justify-content:space-between;
+  padding:9px 0;border-bottom:1px solid var(--rule2)}
+.r-row:last-child{border-bottom:none}
+.r-key{font-family:'IBM Plex Mono',monospace;font-size:0.6rem;
+  letter-spacing:0.1em;color:var(--ink3);text-transform:uppercase}
+.r-val{font-family:'Cormorant Garamond',serif;font-size:1.2rem;color:var(--gold)}
+.r-mini-bar{flex:1;height:2px;background:var(--rule2);border-radius:1px;
+  overflow:hidden;margin:0 11px}
+.r-mini-fill{height:100%;background:var(--gold2);border-radius:1px;
+  transition:width 1.2s cubic-bezier(0.16,1,0.3,1);width:0}
+
+/* Alert */
+.result-alert{margin:2rem 2.5rem 0;display:flex;gap:13px;align-items:flex-start;
+  padding:13px 18px;border-left:3px solid;font-size:0.83rem;line-height:1.6}
+.alert-cn{border-color:var(--cn);background:var(--cn-bg);color:var(--cn)}
+.alert-mci{border-color:var(--mci);background:var(--mci-bg);color:var(--mci)}
+.alert-ad{border-color:var(--ad);background:var(--ad-bg);color:var(--ad)}
+.alert-warn{border-color:var(--gold);background:rgba(184,134,11,0.07);color:var(--mci)}
+.alert-error{border-color:#b03030;background:#fdecea;color:#7a1a1a}
+
+/* Disclaimer */
+.disclaimer{border-top:1px solid var(--rule);padding:1.8rem 2.5rem;
+  display:grid;grid-template-columns:auto 1fr;gap:1.3rem;align-items:start}
+.disclaimer-mark{font-family:'IBM Plex Mono',monospace;font-size:0.62rem;
+  letter-spacing:0.18em;color:var(--gold);text-transform:uppercase;
+  white-space:nowrap;padding-top:2px}
+.disclaimer-text{font-size:0.78rem;line-height:1.65;color:var(--ink3)}
+
+/* Loading */
+.loading-scrim{display:none;position:fixed;inset:0;z-index:1000;
+  background:rgba(247,244,239,0.92);backdrop-filter:blur(6px);
+  align-items:center;justify-content:center;flex-direction:column;gap:1.5rem}
+.loading-scrim.on{display:flex}
+.loading-mark{font-family:'Cormorant Garamond',serif;font-size:1.8rem;
+  font-weight:300;letter-spacing:0.12em;color:var(--ink);text-transform:uppercase}
+.loading-bar{width:200px;height:1px;background:var(--rule);position:relative}
+.loading-progress{height:1px;background:var(--gold);transition:width 0.5s ease;width:0}
+.loading-step-txt{font-family:'IBM Plex Mono',monospace;font-size:0.63rem;
+  letter-spacing:0.15em;color:var(--ink3);text-transform:uppercase}
+
+/* Footer */
+footer{border-top:1px solid var(--rule);padding:1.3rem 2.5rem;
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem}
+.footer-left{font-family:'IBM Plex Mono',monospace;font-size:0.6rem;
+  letter-spacing:0.12em;color:var(--ink4);text-transform:uppercase}
+.footer-links{display:flex;gap:2rem}
+.footer-link{font-family:'IBM Plex Mono',monospace;font-size:0.6rem;
+  letter-spacing:0.12em;color:var(--ink4);text-decoration:none;
+  text-transform:uppercase;transition:color 0.2s}
+.footer-link:hover{color:var(--ink)}
+
+@media(max-width:900px){
+  .hero,.assess-grid,.results-grid{grid-template-columns:1fr}
+  .site-header,.assess-wrap,.disclaimer,.result-alert{padding-left:1.5rem;padding-right:1.5rem}
+  .section-head{padding:1.4rem 1.5rem}
+  .hero{padding:3rem 1.5rem 2.5rem}
+}
+@media(max-width:600px){.field-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div class="loading-scrim" id="scrim">
+  <div class="loading-mark">URGMN</div>
+  <div class="loading-bar"><div class="loading-progress" id="loadProg"></div></div>
+  <div class="loading-step-txt" id="loadStep">Initialising analysis...</div>
+</div>
+
+<!-- Header -->
+<header class="site-header">
+  <div class="wordmark">
+    <span class="wordmark-main">URGMN</span>
+    <span class="wordmark-sub">Alzheimer's Diagnostic Intelligence</span>
+  </div>
+  <div class="status-pill">
+    <span class="live-dot"></span>
+    Model v2.0 · AUC 0.993
+  </div>
+</header>
+
+<!-- Connection status banner -->
+<div class="conn-banner checking" id="connBanner">
+  <span class="conn-dot"></span>
+  <span id="connText">Checking connection to model server...</span>
+</div>
+
+<!-- Hero -->
+<section class="hero">
+  <div>
+    <p class="hero-kicker">Research-grade · Multimodal · Uncertainty-aware</p>
+    <h1 class="hero-h1">Diagnose Alzheimer's<br/>with <em>clarity</em><br/>and <em>candour</em></h1>
+    <p class="hero-body">Upload a T1-weighted MRI and enter standard clinical scores. URGMN fuses both through a ResNet-18 + CBAM encoder and a clinical Transformer, returning a three-class diagnosis — CN, MCI, or AD — with calibrated uncertainty from an Evidential Deep Learning head.</p>
+  </div>
+  <div>
+    <div class="metrics-block">
+      <div class="metrics-row">
+        <div class="metric-cell"><span class="metric-num">93.9%</span><span class="metric-label">Subject accuracy</span></div>
+        <div class="metric-cell"><span class="metric-num">0.993</span><span class="metric-label">Macro AUC</span></div>
+      </div>
+      <div class="metrics-row">
+        <div class="metric-cell"><span class="metric-num">100%</span><span class="metric-label">CN recall</span></div>
+        <div class="metric-cell"><span class="metric-num">657</span><span class="metric-label">ADNI subjects</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Assessment form -->
+<div class="section-head" id="assess">
+  <span class="section-num">01</span>
+  <span class="section-title">Patient Assessment</span>
+  <span class="section-rule"></span>
+</div>
+<div class="assess-wrap">
+  <div class="assess-grid">
+
+    <!-- MRI pane -->
+    <div class="pane">
+      <div class="pane-title">MRI Scan</div>
+      <div class="pane-sub">Stream 01 · T1-weighted NIfTI</div>
+
+      <div class="upload-zone" id="dropZone">
+        <svg class="upload-icon" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1">
+          <rect x="2" y="2" width="32" height="32" rx="2"/>
+          <circle cx="18" cy="15" r="6"/>
+          <path d="M7 33c0-6.075 4.925-11 11-11s11 4.925 11 11"/>
+        </svg>
+        <p class="upload-text">Drop NIfTI file here, or click to browse</p>
+        <p class="upload-hint">.nii &nbsp;·&nbsp; .nii.gz &nbsp;·&nbsp; T1-weighted</p>
+        <input type="file" id="mriInput" accept=".nii,.nii.gz" onchange="onFileSelect(this)"/>
+      </div>
+      <div class="file-status" id="fileStatus">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
+        <span class="file-status-name" id="fileName">—</span>
+      </div>
+
+      <div class="field">
+        <label class="field-label">Scanner Field Strength</label>
+        <select id="fieldStr">
+          <option value="3T">3 Tesla (ADNI3 standard)</option>
+          <option value="1.5T">1.5 Tesla (ADNI1 standard)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="field-label">APOE ε4 Copies</label>
+        <select id="apoe">
+          <option value="-1">Not tested / unknown</option>
+          <option value="0">0 copies — low risk</option>
+          <option value="1">1 copy — elevated risk</option>
+          <option value="2">2 copies — high risk</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="field-label">Patient Reference (anonymised)</label>
+        <input type="text" id="patRef" placeholder="e.g. 002_S_0295" style="font-family:'IBM Plex Mono',monospace"/>
+      </div>
+    </div>
+
+    <!-- Clinical pane -->
+    <div class="pane">
+      <div class="pane-title">Clinical Scores</div>
+      <div class="pane-sub">Stream 02 · Standardised assessments</div>
+
+      <div class="field">
+        <div class="range-header">
+          <label class="field-label" style="margin:0">MMSE Score</label>
+          <span class="range-current" id="mmseDisplay">24</span>
+        </div>
+        <input type="range" id="mmse" min="0" max="30" value="24" step="1"
+               oninput="updateRange(this,'mmseDisplay')" style="--pct:80%"/>
+        <div class="range-ends">
+          <span class="range-end">0 — Severe</span>
+          <span class="range-end">30 — Normal</span>
+        </div>
+        <p class="field-hint">Mini-Mental State Examination</p>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label class="field-label">Global CDR</label>
+          <select id="cdr">
+            <option value="0">0 — Normal</option>
+            <option value="0.5" selected>0.5 — Questionable</option>
+            <option value="1">1 — Mild</option>
+            <option value="2">2 — Moderate</option>
+            <option value="3">3 — Severe</option>
+          </select>
+          <p class="field-hint">Clinical Dementia Rating</p>
+        </div>
+        <div class="field">
+          <label class="field-label">FAQ Total <span style="color:var(--ink4)">(0–30)</span></label>
+          <input type="number" id="faq" min="0" max="30" value="6"/>
+          <p class="field-hint">Functional Activities Questionnaire</p>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label class="field-label">Age (years)</label>
+          <input type="number" id="age" min="40" max="100" value="72"/>
+        </div>
+        <div class="field">
+          <label class="field-label">Education (years)</label>
+          <input type="number" id="edu" min="0" max="25" value="16"/>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label class="field-label">Sex at birth</label>
+          <select id="gender">
+            <option value="1">Male</option>
+            <option value="2">Female</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field-label">CDR Sum of Boxes</label>
+          <input type="number" id="cdrSb" min="0" max="18" value="1.0" step="0.5"/>
+          <p class="field-hint">0–18 scale</p>
+        </div>
+      </div>
+
+      <button class="run-btn" id="runBtn" onclick="runAnalysis()">
+        <div class="btn-spin" id="btnSpin"></div>
+        <svg id="btnIco" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+        Run Diagnostic Analysis
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Results -->
+<div id="results">
+  <div class="section-head">
+    <span class="section-num">02</span>
+    <span class="section-title">Diagnostic Report</span>
+    <span class="section-rule"></span>
+    <span id="reportTs" style="font-family:'IBM Plex Mono',monospace;font-size:0.6rem;color:var(--ink4);letter-spacing:0.1em"></span>
+  </div>
+  <div class="results-grid">
+    <div class="result-pane">
+      <div id="diagStamp" class="diag-stamp"></div>
+      <div id="diagTitle" class="diag-title"></div>
+      <div id="diagConf" class="diag-conf"></div>
+      <div class="prob-section-label">Class probabilities — 5-fold ensemble</div>
+      <div id="probBars"></div>
+      <div style="margin-top:1.5rem">
+        <div class="prob-section-label">Clinical input summary</div>
+        <table class="clin-table" id="clinTable"></table>
+      </div>
+    </div>
+    <div class="side-pane">
+      <div style="margin-bottom:2rem">
+        <div class="side-label">Epistemic Uncertainty · N4</div>
+        <span class="unc-big" id="uncVal">—</span>
+        <div class="unc-bar"><div class="unc-fill" id="uncFill"></div></div>
+        <p class="unc-desc" id="uncDesc"></p>
+      </div>
+      <div style="margin-bottom:2rem">
+        <div class="side-label">Reliability Gate · N1</div>
+        <div id="reliRows"></div>
+      </div>
+      <div>
+        <div class="side-label">Model Provenance</div>
+        <table class="clin-table">
+          <tr><td class="clin-key">Architecture</td><td class="clin-val">ResNet-18 + CBAM</td></tr>
+          <tr><td class="clin-key">Clinical enc.</td><td class="clin-val">Transformer ×4</td></tr>
+          <tr><td class="clin-key">Loss</td><td class="clin-val">Ordinal EDL</td></tr>
+          <tr><td class="clin-key">Ensemble</td><td class="clin-val">5-fold avg</td></tr>
+          <tr><td class="clin-key">Dataset</td><td class="clin-val">ADNI1/2/3</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div id="resultAlert" class="result-alert" style="display:none"></div>
+  <div class="disclaimer">
+    <span class="disclaimer-mark">⚠ Notice</span>
+    <p class="disclaimer-text">URGMN is a research tool. Results must not substitute clinical judgment. All data is processed locally via your server — nothing is sent to third-party services.</p>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer>
+  <span class="footer-left">URGMN v2.0 · BTech Final Year Project · 2026</span>
+  <div class="footer-links">
+    <a class="footer-link" href="https://github.com/thescarydebug/URGMN" target="_blank">GitHub</a>
+    <a class="footer-link" href="#assess">New Analysis</a>
+  </div>
+</footer>
+
+<script>
+// ── Config ──
+// Change this to your server URL when deployed on Render
+const API_BASE = window.location.origin;
+
+// ── Connection check ──
+async function checkConnection() {
+  const banner = document.getElementById('connBanner');
+  const text   = document.getElementById('connText');
+  try {
+    const r = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(5000) });
+    const d = await r.json();
+    banner.className = 'conn-banner connected';
+    text.textContent = `Model server connected · ${d.models_loaded} fold models loaded · Device: ${d.device}`;
+  } catch(e) {
+    banner.className = 'conn-banner disconnected';
+    text.textContent = 'Model server not reachable. Start the FastAPI server first (see instructions).';
+  }
+}
+checkConnection();
+setInterval(checkConnection, 30000);
+
+// ── Range slider ──
+function updateRange(el, displayId) {
+  const pct = ((el.value - el.min) / (el.max - el.min) * 100).toFixed(1) + '%';
+  el.style.setProperty('--pct', pct);
+  document.getElementById(displayId).textContent = el.value;
+}
+
+// ── Drag-and-drop ──
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if (f) { document.getElementById('mriInput').files = e.dataTransfer.files; showFile(f.name); }
+});
+function onFileSelect(inp) { if (inp.files[0]) showFile(inp.files[0].name); }
+function showFile(name) {
+  document.getElementById('fileName').textContent = name;
+  document.getElementById('fileStatus').classList.add('show');
+}
+
+// ── Loading steps ──
+const STEPS = [
+  'Loading NIfTI volume...',
+  'Extracting 20 axial slices...',
+  'ResNet-18 + CBAM forward pass...',
+  'Clinical Transformer encoding...',
+  'Reliability Gate scoring...',
+  'Cross-attention fusion...',
+  'EDL Dirichlet head...',
+  'Aggregating 5-fold ensemble...',
+  'Generating report...',
+];
+function showLoading() {
+  document.getElementById('scrim').classList.add('on');
+  let i = 0;
+  const prog = document.getElementById('loadProg');
+  const step = document.getElementById('loadStep');
+  return setInterval(() => {
+    if (i >= STEPS.length) return;
+    step.textContent = STEPS[i];
+    prog.style.width = ((i + 1) / STEPS.length * 100) + '%';
+    i++;
+  }, 600);
+}
+function hideLoading() {
+  document.getElementById('scrim').classList.remove('on');
+  document.getElementById('loadProg').style.width = '0';
+}
+
+// ── Main analysis — calls real FastAPI backend ──
+async function runAnalysis() {
+  const btn = document.getElementById('runBtn');
+  const mriInput = document.getElementById('mriInput');
+
+  // Validate MRI file
+  if (!mriInput.files || !mriInput.files[0]) {
+    alert('Please upload a NIfTI MRI file (.nii or .nii.gz) before running analysis.');
+    return;
+  }
+
+  btn.disabled = true;
+  document.getElementById('btnSpin').style.display = 'block';
+  document.getElementById('btnIco').style.display  = 'none';
+
+  const iv = showLoading();
+
+  try {
+    // Build FormData with MRI file + all clinical inputs
+    const fd = new FormData();
+    fd.append('mri_file', mriInput.files[0]);
+    fd.append('mmse',   document.getElementById('mmse').value);
+    fd.append('cdr',    document.getElementById('cdr').value);
+    fd.append('faq',    document.getElementById('faq').value || '0');
+    fd.append('age',    document.getElementById('age').value || '72');
+    fd.append('edu',    document.getElementById('edu').value || '16');
+    fd.append('apoe',   document.getElementById('apoe').value);
+    fd.append('gender', document.getElementById('gender').value);
+    fd.append('cdr_sb', document.getElementById('cdrSb').value || '1.0');
+
+    // POST to real FastAPI /predict endpoint
+    const resp = await fetch(`${API_BASE}/predict`, {
+      method: 'POST',
+      body: fd
+      // Do NOT set Content-Type header — browser sets it with boundary for FormData
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`Server error ${resp.status}: ${errText}`);
+    }
+
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+
+    clearInterval(iv);
+    hideLoading();
+    renderResults(data);
+
+  } catch (err) {
+    clearInterval(iv);
+    hideLoading();
+    // Show error in results panel instead of alert
+    document.getElementById('results').style.display = 'block';
+    const alertDiv = document.getElementById('resultAlert');
+    alertDiv.style.display = 'flex';
+    alertDiv.className = 'result-alert alert-error';
+    alertDiv.innerHTML = `
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
+        viewBox="0 0 24 24" style="flex-shrink:0;margin-top:1px">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <span><strong>Analysis failed:</strong> ${err.message}<br/>
+      Make sure the FastAPI server is running:
+      <code style="background:rgba(0,0,0,0.07);padding:1px 5px;border-radius:2px">
+        uvicorn main:app --reload --port 8000
+      </code></span>`;
+  } finally {
+    btn.disabled = false;
+    document.getElementById('btnSpin').style.display = 'none';
+    document.getElementById('btnIco').style.display  = 'block';
+  }
+}
+
+// ── Render results from API response ──
+function renderResults(data) {
+  const probs    = [data.probabilities.CN, data.probabilities.MCI, data.probabilities.AD];
+  const labels   = ['CN', 'MCI', 'AD'];
+  const fullNames = ['Cognitively Normal', 'Mild Cognitive Impairment', 'Alzheimer\'s Disease'];
+  const stampCls  = ['stamp-cn', 'stamp-mci', 'stamp-ad'];
+  const colors    = ['var(--cn)', 'var(--mci)', 'var(--ad)'];
+  const diagIdx   = labels.indexOf(data.diagnosis);
+  const u         = data.uncertainty;
+
+  document.getElementById('reportTs').textContent =
+    new Date().toLocaleString('en-GB', { dateStyle:'medium', timeStyle:'short' });
+
+  // Diagnosis header
+  document.getElementById('diagStamp').className = 'diag-stamp ' + stampCls[diagIdx];
+  document.getElementById('diagStamp').innerHTML = `
+    <svg width="7" height="7" viewBox="0 0 7 7">
+      <circle cx="3.5" cy="3.5" r="3.5" fill="currentColor"/>
+    </svg>
+    ${data.diagnosis} &nbsp;—&nbsp; ${data.diagnosis_full}`;
+  document.getElementById('diagTitle').textContent = data.diagnosis_full;
+  document.getElementById('diagConf').textContent =
+    `Confidence: ${(probs[diagIdx]*100).toFixed(1)}%` +
+    `  ·  ${data.n_models}-fold ensemble` +
+    `  ·  ${data.has_mri ? 'MRI + Clinical' : 'Clinical only (no MRI)'}`;
+
+  // Probability bars
+  document.getElementById('probBars').innerHTML = probs.map((p, i) => `
+    <div class="prob-row">
+      <span class="prob-class" style="color:${colors[i]}">${labels[i]}</span>
+      <div class="prob-track">
+        <div class="prob-fill probf-${i}" style="background:${colors[i]}"></div>
+      </div>
+      <span class="prob-num" style="color:${colors[i]}">${(p*100).toFixed(1)}%</span>
+    </div>`).join('');
+  setTimeout(() => {
+    probs.forEach((p, i) => {
+      const el = document.querySelector(`.probf-${i}`);
+      if (el) el.style.width = (p * 100) + '%';
+    });
+  }, 80);
+
+  // Clinical table
+  const cdrEl  = document.getElementById('cdr');
+  const apoeEl = document.getElementById('apoe');
+  const cdrMap = {'0':'Normal','0.5':'Questionable','1':'Mild','2':'Moderate','3':'Severe'};
+  document.getElementById('clinTable').innerHTML = [
+    ['MMSE score',   document.getElementById('mmse').value + ' / 30'],
+    ['CDR Global',   cdrMap[cdrEl.value] || cdrEl.value],
+    ['FAQ total',    document.getElementById('faq').value + ' / 30'],
+    ['Age',          document.getElementById('age').value + ' years'],
+    ['Education',    document.getElementById('edu').value + ' years'],
+    ['APOE ε4',      apoeEl.options[apoeEl.selectedIndex].text],
+    ['MRI provided', data.has_mri ? 'Yes' : 'No'],
+    ['Models used',  data.n_models + ' fold models'],
+  ].map(([k,v]) =>
+    `<tr><td class="clin-key">${k}</td><td class="clin-val">${v}</td></tr>`
+  ).join('');
+
+  // Uncertainty
+  document.getElementById('uncVal').textContent = u.toFixed(3);
+  document.getElementById('uncVal').style.color =
+    u < 0.18 ? 'var(--cn)' : u < 0.35 ? 'var(--mci)' : 'var(--ad)';
+  document.getElementById('uncFill').style.width   = (u * 100) + '%';
+  document.getElementById('uncFill').style.background =
+    u < 0.18 ? 'var(--cn)' : u < 0.35 ? 'var(--mci)' : 'var(--ad)';
+  document.getElementById('uncDesc').textContent =
+    u < 0.18 ? 'Low uncertainty — high model confidence.' :
+    u < 0.35 ? 'Moderate uncertainty. Clinical review recommended.' :
+               'High uncertainty. Specialist review strongly advised.';
+
+  // Reliability gate
+  const rm = data.reliability.mri.toFixed(3);
+  const rc = data.reliability.clinical.toFixed(3);
+  document.getElementById('reliRows').innerHTML = `
+    <div class="r-row">
+      <span class="r-key">MRI stream</span>
+      <div class="r-mini-bar"><div class="r-mini-fill" id="rMri"></div></div>
+      <span class="r-val">${rm}</span>
+    </div>
+    <div class="r-row">
+      <span class="r-key">Clinical stream</span>
+      <div class="r-mini-bar"><div class="r-mini-fill" id="rClin"></div></div>
+      <span class="r-val">${rc}</span>
+    </div>`;
+  setTimeout(() => {
+    const r1 = document.getElementById('rMri');
+    const r2 = document.getElementById('rClin');
+    if (r1) r1.style.width = (data.reliability.mri  * 100) + '%';
+    if (r2) r2.style.width = (data.reliability.clinical * 100) + '%';
+  }, 150);
+
+  // Alert
+  const alertDiv = document.getElementById('resultAlert');
+  alertDiv.style.display = 'flex';
+  const iconWarn = `<svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"
+    viewBox="0 0 24 24" style="flex-shrink:0;margin-top:1px">
+    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+    <line x1="12" y1="9" x2="12" y2="13"/></svg>`;
+  const iconOk = `<svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"
+    viewBox="0 0 24 24" style="flex-shrink:0;margin-top:1px"><path d="M20 6L9 17l-5-5"/></svg>`;
+
+  if (u > 0.38) {
+    alertDiv.className = 'result-alert alert-warn';
+    alertDiv.innerHTML = iconWarn +
+      '<span><strong>High epistemic uncertainty.</strong> This case falls near a class boundary. Specialist neurological evaluation strongly advised.</span>';
+  } else if (diagIdx === 2) {
+    alertDiv.className = 'result-alert alert-ad';
+    alertDiv.innerHTML = iconWarn +
+      `<span><strong>AD pattern detected</strong> with ${(probs[2]*100).toFixed(1)}% confidence. Clinical referral recommended.</span>`;
+  } else if (diagIdx === 1) {
+    alertDiv.className = 'result-alert alert-mci';
+    alertDiv.innerHTML = iconWarn +
+      '<span><strong>MCI pattern detected.</strong> Annual follow-up and APOE ε4 testing recommended.</span>';
+  } else {
+    alertDiv.className = 'result-alert alert-cn';
+    alertDiv.innerHTML = iconOk +
+      '<span><strong>Cognitively normal pattern.</strong> No significant Alzheimer\'s markers detected.</span>';
+  }
+
+  document.getElementById('results').style.display = 'block';
+  setTimeout(() => document.getElementById('results')
+    .scrollIntoView({ behavior:'smooth', block:'start' }), 100);
+}
+</script>
+</body>
+</html>
