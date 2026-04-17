@@ -1,6 +1,6 @@
 fastapi
 uvicorn
-torch=2.2.0
+torch==2.2.0
 torchvision
 nibabel
 opencv-python-headless
